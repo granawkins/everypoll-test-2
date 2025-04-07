@@ -16,45 +16,11 @@ Tests should verify:
 
 Create the backend functionality for anonymous users with session management. Implement the /api/auth/me endpoint that creates new anonymous users when no session exists.
 
-### Implementation Details
-
-1. **Session Management**:
-   - Install and configure express-session with cookie settings
-   - Properly extend SessionData interface to include userId
-   - Use secure defaults for session cookies
-
-2. **User Service**:
-   - Create a userService.ts file with createAnonymousUser, getUserById functions
-   - Ensure proper typings for database interactions
-   - Keep business logic separate from route handlers
-
-3. **Authentication Routes**:
-   - Create a dedicated auth.ts router with the /api/auth/me endpoint
-   - Implement /api/auth/logout endpoint for session destruction
-   - Add placeholder endpoints for Google auth (to be implemented in Step 3)
-
-4. **Authentication Middleware**:
-   - Create middleware to attach user data to requests based on session
-   - Add requireAuth middleware for protected routes (will be used in later steps)
-
-### Testing Strategy
-
 Tests should verify:
 - Anonymous users are created when a new session starts
 - Session cookies are properly set and managed
 - The /api/auth/me endpoint returns the correct user information
 - Anonymous user records are properly stored in the database
-
-**Testing Tips**:
-- Keep test mocks simple - focus on unit testing route handlers directly
-- For session tests, use supertest with the agent to maintain cookies
-- Properly mock user service functions in route tests
-- Keep database tests separate from authentication tests
-
-### Potential Challenges
-- TypeScript typing with express-session requires careful declaration merging
-- Express route typing can be complex when using async handlers
-- Session cookie testing requires proper agent configuration
 
 ## Step 3: Add Google authentication support
 
