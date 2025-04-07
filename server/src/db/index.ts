@@ -61,11 +61,21 @@ export const closeDatabase = (): void => {
 // Direct query execution helpers
 
 /**
+ * SQL parameter value type
+ */
+type SQLiteValue = string | number | boolean | null | Buffer;
+
+/**
+ * SQL parameters object type
+ */
+export type SQLiteParams = Record<string, SQLiteValue>;
+
+/**
  * Execute a query that doesn't return any rows
  */
 export const executeQuery = async (
   sql: string,
-  params: Record<string, any> = {}
+  params: SQLiteParams = {}
 ): Promise<void> => {
   const database = await getDatabase();
   database.prepare(sql).run(params);
@@ -74,9 +84,9 @@ export const executeQuery = async (
 /**
  * Execute a query and return all rows
  */
-export const getAllRows = async <T = any>(
+export const getAllRows = async <T extends Record<string, SQLiteValue>>(
   sql: string,
-  params: Record<string, any> = {}
+  params: SQLiteParams = {}
 ): Promise<T[]> => {
   const database = await getDatabase();
   return database.prepare(sql).all(params);
@@ -85,9 +95,9 @@ export const getAllRows = async <T = any>(
 /**
  * Execute a query and return the first row
  */
-export const getRow = async <T = any>(
+export const getRow = async <T extends Record<string, SQLiteValue>>(
   sql: string,
-  params: Record<string, any> = {}
+  params: SQLiteParams = {}
 ): Promise<T | undefined> => {
   const database = await getDatabase();
   return database.prepare(sql).get(params);

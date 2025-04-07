@@ -11,6 +11,13 @@ interface Migration {
 }
 
 /**
+ * Type for migration rows returned from the database
+ */
+interface MigrationRow {
+  name: string;
+}
+
+/**
  * Custom storage implementation for SQLite
  */
 const createSqliteStorage = (db: Database.Database) => {
@@ -42,30 +49,53 @@ const createSqliteStorage = (db: Database.Database) => {
       return db.prepare(`
         SELECT name FROM ${DB_CONFIG.migrationTableName} 
         ORDER BY executed_at
-      `).all().map((row: any) => row.name);
+      `).all().map((row: MigrationRow) => row.name);
     }
   };
 };
 
 /**
+ * Type for the migrator instance
+ */
+type DatabaseMigrator = Umzug<{
+  name: string;
+  path: string;
+}>;
+
+/**
+ * Dynamically import a migration file
+ */
+const importMigration = async (path: string): Promise<Migration> => {
+  // Use dynamic import instead of require
+  const module = await import(path);
+  return module as Migration;
+};
+
+/**
  * Setup the migrations system
  */
-export const setupMigrations = (db: Database.Database) => {
+export const setupMigrations = (db: Database.Database): DatabaseMigrator => {
   // Setup umzug migrator
   const migrator = new Umzug({
     migrations: {
       glob: ['*.ts', { cwd: DB_CONFIG.migrationPath }],
-      resolve: ({ name, path }) => {
+      resolve: async ({ name, path }) => {
         if (!path) {
           throw new Error(`Could not resolve migration path for ${name}`);
         }
-        // Import migration file
-        const migration: Migration = require(path);
-        return {
-          name,
-          up: async () => migration.up(db),
-          down: async () => migration.down(db),
-        };
+        
+        try {
+          // Import migration file using dynamic import
+          const migration = await importMigration(path);
+          return {
+            name,
+            up: async () => migration.up(db),
+            down: async () => migration.down(db),
+          };
+        } catch (error) {
+          console.error(`Failed to import migration ${name}:`, error);
+          throw error;
+        }
       },
     },
     storage: createSqliteStorage(db),
@@ -78,7 +108,7 @@ export const setupMigrations = (db: Database.Database) => {
 /**
  * Run all pending migrations
  */
-export const runMigrations = async (migrator: Umzug<any>): Promise<void> => {
+export const runMigrations = async (migrator: DatabaseMigrator): Promise<void> => {
   try {
     await migrator.up();
     console.log('All migrations have been executed successfully.');
@@ -91,7 +121,7 @@ export const runMigrations = async (migrator: Umzug<any>): Promise<void> => {
 /**
  * Revert the most recent migration
  */
-export const revertLastMigration = async (migrator: Umzug<any>): Promise<void> => {
+export const revertLastMigration = async (migrator: DatabaseMigrator): Promise<void> => {
   try {
     await migrator.down();
     console.log('Last migration has been reverted successfully.');
@@ -104,7 +134,7 @@ export const revertLastMigration = async (migrator: Umzug<any>): Promise<void> =
 /**
  * Revert all migrations
  */
-export const revertAllMigrations = async (migrator: Umzug<any>): Promise<void> => {
+export const revertAllMigrations = async (migrator: DatabaseMigrator): Promise<void> => {
   try {
     await migrator.down({ to: 0 });
     console.log('All migrations have been reverted successfully.');
