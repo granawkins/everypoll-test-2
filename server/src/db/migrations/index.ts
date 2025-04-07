@@ -84,30 +84,34 @@ export const setupMigrations = (db: Database.Database): DatabaseMigrator => {
   const migrator = new Umzug<MigrationContext>({
     migrations: {
       glob: ['*.ts', { cwd: DB_CONFIG.migrationPath }],
-      resolve: async ({ name, path }: MigrationParams<MigrationContext>) => {
+      resolve: ({ name, path }: MigrationParams<MigrationContext>) => {
         if (!path) {
           throw new Error(`Could not resolve migration path for ${name}`);
         }
         
-        try {
-          // Import migration file using dynamic import
-          const migration = await importMigration(path);
-          
-          return {
-            name,
-            up: async () => {
-              migration.up(db);
-              return Promise.resolve();
-            },
-            down: async () => {
-              migration.down(db);
-              return Promise.resolve();
-            },
-          };
-        } catch (error) {
-          console.error(`Failed to import migration ${name}:`, error);
-          throw error;
-        }
+        // Return a function that will handle the async import
+        return {
+          name,
+          // MigrationFn expects to return Promise<any>
+          up: async () => {
+            try {
+              const migration = await importMigration(path);
+              return migration.up(db);
+            } catch (error) {
+              console.error(`Failed to run up migration ${name}:`, error);
+              throw error;
+            }
+          },
+          down: async () => {
+            try {
+              const migration = await importMigration(path);
+              return migration.down(db);
+            } catch (error) {
+              console.error(`Failed to run down migration ${name}:`, error);
+              throw error;
+            }
+          }
+        };
       },
     },
     storage: createSqliteStorage(db),

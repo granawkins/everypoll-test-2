@@ -10,25 +10,27 @@ const router = Router();
  * Returns the current user's information
  * Creates a new anonymous user if no user is authenticated
  */
-router.get('/me', async (req: Request, res: Response): Promise<Response> => {
-  try {
-    // If user is already authenticated, return user data
-    if (req.isAuthenticated && req.user) {
-      return res.json({ user: req.user });
-    }
+router.get('/me', function(req: Request, res: Response) {
+  (async function() {
+    try {
+      // If user is already authenticated, return user data
+      if (req.isAuthenticated && req.user) {
+        return res.json({ user: req.user });
+      }
 
-    // If no user in session, create a new anonymous user
-    const newUser = await createAnonymousUser();
-    
-    // Store user ID in session
-    req.session.userId = newUser.id;
-    
-    // Return the new user
-    return res.status(201).json({ user: newUser });
-  } catch (error) {
-    console.error('Error in /api/auth/me:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
+      // If no user in session, create a new anonymous user
+      const newUser = await createAnonymousUser();
+      
+      // Store user ID in session
+      req.session.userId = newUser.id;
+      
+      // Return the new user
+      return res.status(201).json({ user: newUser });
+    } catch (error) {
+      console.error('Error in /api/auth/me:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  })();
 });
 
 /**
@@ -36,7 +38,7 @@ router.get('/me', async (req: Request, res: Response): Promise<Response> => {
  * Generates a Google authentication URL and returns it
  * The frontend will redirect the user to this URL
  */
-router.post('/login', (req: Request, res: Response): Response => {
+router.post('/login', function(req: Request, res: Response) {
   try {
     // Generate a state parameter for CSRF protection
     const state = uuidv4();
@@ -60,76 +62,78 @@ router.post('/login', (req: Request, res: Response): Response => {
  * Handles the callback from Google after user authentication
  * Verifies the authorization code and updates the user's information
  */
-router.get('/google-callback', async (req: Request, res: Response): Promise<Response | void> => {
-  try {
-    const { code, state: encodedState, error } = req.query;
-    
-    // Handle authentication errors
-    if (error) {
-      console.error('Google authentication error:', error);
-      return res.redirect('/?error=google_auth_failed');
-    }
-    
-    // Validate code and state
-    if (!code || !encodedState) {
-      return res.redirect('/?error=invalid_callback');
-    }
-    
-    // Decode state parameter to get redirect URL
-    // Note: In a production app, we would validate the state parameter against 
-    // a stored value to prevent CSRF attacks
-    let redirectUrl;
+router.get('/google-callback', function(req: Request, res: Response) {
+  (async function() {
     try {
-      const decodedState = Buffer.from(encodedState as string, 'base64').toString();
-      const stateObj = JSON.parse(decodedState);
-      // State validation would happen here
-      redirectUrl = stateObj.redirectUrl || '/';
-    } catch (e) {
-      console.error('Error decoding state:', e);
-      return res.redirect('/?error=invalid_state');
+      const { code, state: encodedState, error } = req.query;
+      
+      // Handle authentication errors
+      if (error) {
+        console.error('Google authentication error:', error);
+        return res.redirect('/?error=google_auth_failed');
+      }
+      
+      // Validate code and state
+      if (!code || !encodedState) {
+        return res.redirect('/?error=invalid_callback');
+      }
+      
+      // Decode state parameter to get redirect URL
+      // Note: In a production app, we would validate the state parameter against 
+      // a stored value to prevent CSRF attacks
+      let redirectUrl;
+      try {
+        const decodedState = Buffer.from(encodedState as string, 'base64').toString();
+        const stateObj = JSON.parse(decodedState);
+        // State validation would happen here
+        redirectUrl = stateObj.redirectUrl || '/';
+      } catch (e) {
+        console.error('Error decoding state:', e);
+        return res.redirect('/?error=invalid_state');
+      }
+      
+      // Get user information from Google
+      const googleUserInfo = await getGoogleUserInfo(code as string);
+      if (!googleUserInfo || !googleUserInfo.email) {
+        return res.redirect('/?error=google_user_info_failed');
+      }
+      
+      // Get user ID from session
+      const userId = req.session.userId;
+      if (!userId) {
+        return res.redirect('/?error=no_session');
+      }
+      
+      // Get user from database
+      const user = await getUserById(userId);
+      if (!user) {
+        return res.redirect('/?error=user_not_found');
+      }
+      
+      // Link user to Google account
+      const updatedUser = await linkUserToGoogle(
+        user.id,
+        googleUserInfo.email,
+        googleUserInfo.name
+      );
+      
+      // Update the user in the session
+      req.user = updatedUser;
+      
+      // Redirect to the original URL or home page
+      return res.redirect(redirectUrl);
+    } catch (error) {
+      console.error('Error in Google callback:', error);
+      return res.redirect('/?error=google_callback_failed');
     }
-    
-    // Get user information from Google
-    const googleUserInfo = await getGoogleUserInfo(code as string);
-    if (!googleUserInfo || !googleUserInfo.email) {
-      return res.redirect('/?error=google_user_info_failed');
-    }
-    
-    // Get user ID from session
-    const userId = req.session.userId;
-    if (!userId) {
-      return res.redirect('/?error=no_session');
-    }
-    
-    // Get user from database
-    const user = await getUserById(userId);
-    if (!user) {
-      return res.redirect('/?error=user_not_found');
-    }
-    
-    // Link user to Google account
-    const updatedUser = await linkUserToGoogle(
-      user.id,
-      googleUserInfo.email,
-      googleUserInfo.name
-    );
-    
-    // Update the user in the session
-    req.user = updatedUser;
-    
-    // Redirect to the original URL or home page
-    return res.redirect(redirectUrl);
-  } catch (error) {
-    console.error('Error in Google callback:', error);
-    return res.redirect('/?error=google_callback_failed');
-  }
+  })();
 });
 
 /**
  * POST /api/auth/logout
  * Logs out the current user by destroying the session
  */
-router.post('/logout', (req: Request, res: Response): void => {
+router.post('/logout', function(req: Request, res: Response) {
   req.session.destroy((err) => {
     if (err) {
       console.error('Error destroying session:', err);

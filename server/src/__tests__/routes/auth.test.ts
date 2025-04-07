@@ -166,17 +166,45 @@ describe('Auth Routes', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Create a session mock that returns itself for chaining
+    const sessionMock = {
+      id: 'test-session-id',
+      cookie: {
+        originalMaxAge: 86400000, // 1 day in milliseconds
+        expires: new Date(Date.now() + 86400000),
+        secure: false,
+        httpOnly: true,
+        path: '/',
+        domain: undefined,
+        sameSite: 'lax' as const
+      },
+      userId: undefined,
+      regenerate: function(cb: (err: Error | null) => void) {
+        cb(null);
+        return this;
+      },
+      destroy: function(cb: (err: Error | null) => void) {
+        cb(null);
+        return this;
+      },
+      reload: function(cb: (err: Error | null) => void) {
+        cb(null);
+        return this;
+      },
+      save: function(cb: (err: Error | null) => void) {
+        cb(null);
+        return this;
+      },
+      touch: function() {
+        return this;
+      },
+      resetMaxAge: function() {
+        return this;
+      }
+    };
+    
     mockRequest = {
-      session: {
-        id: 'test-session-id',
-        cookie: {},
-        regenerate: jest.fn((cb: (err: Error | null) => void) => cb(null)),
-        destroy: jest.fn((cb: (err: Error | null) => void) => cb(null)),
-        reload: jest.fn((cb: (err: Error | null) => void) => cb(null)),
-        save: jest.fn((cb: (err: Error | null) => void) => cb(null)),
-        touch: jest.fn((cb: (err: Error | null) => void) => cb(null)),
-        userId: undefined
-      } as Session & { userId?: string },
+      session: sessionMock as Session & { userId?: string },
       isAuthenticated: false,
       user: undefined,
       body: {},
@@ -425,12 +453,17 @@ describe('Auth Routes', () => {
     });
 
     it('should handle session destroy errors', async () => {
-      // Mock session destroy to fail
-      const mockDestroy = jest.fn((cb: (err: Error | null) => void) => cb(new Error('Session destroy error')));
-      mockRequest.session = {
+      // Create a new session mock with error on destroy
+      const errorSession = {
         ...mockRequest.session,
-        destroy: mockDestroy
+        destroy: function(cb: (err: Error | null) => void) {
+          cb(new Error('Session destroy error'));
+          return this;
+        }
       };
+      
+      // Replace the session
+      mockRequest.session = errorSession as Session & { userId?: string };
 
       // Call the handler directly
       await handlers.logoutHandler(mockRequest as Request, mockResponse as Response);

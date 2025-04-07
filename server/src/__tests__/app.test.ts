@@ -14,15 +14,43 @@ type SessionCallback = (err: Error | null) => void;
 // Mock express-session
 jest.mock('express-session', () => {
   return jest.fn(() => (req: Request, res: Response, next: NextFunction) => {
-    req.session = {
+    const session = {
       id: 'test-session-id',
-      cookie: {},
-      regenerate: (cb: SessionCallback) => cb(null),
-      destroy: (cb: SessionCallback) => cb(null),
-      reload: (cb: SessionCallback) => cb(null),
-      save: (cb: SessionCallback) => cb(null),
-      touch: (cb: SessionCallback) => cb(null),
+      cookie: {
+        originalMaxAge: 86400000, // 1 day in milliseconds
+        expires: new Date(Date.now() + 86400000),
+        secure: false,
+        httpOnly: true,
+        path: '/',
+        domain: undefined,
+        sameSite: 'lax' as const
+      },
+      userId: undefined,
+      regenerate: function(cb: SessionCallback) {
+        cb(null);
+        return this;
+      },
+      destroy: function(cb: SessionCallback) {
+        cb(null);
+        return this;
+      },
+      reload: function(cb: SessionCallback) {
+        cb(null);
+        return this;
+      },
+      save: function(cb: SessionCallback) {
+        cb(null);
+        return this;
+      },
+      touch: function() {
+        return this;
+      },
+      resetMaxAge: function() {
+        return this;
+      }
     };
+    
+    req.session = session;
     next();
   });
 });
