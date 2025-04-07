@@ -201,7 +201,7 @@ describe('Database Module', () => {
         db.prepare('INSERT INTO test_table (id, value) VALUES (?, ?)').run('initial', 'Duplicate');
       });
       fail('Transaction should have thrown an error');
-    } catch (_) {
+    } catch {
       // Expected error
     }
     
