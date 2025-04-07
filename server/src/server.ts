@@ -2,7 +2,7 @@ import { app, PORT } from './app';
 import { getDatabase } from './database/connection';
 
 // Initialize database connection
-const db = getDatabase();
+getDatabase();
 
 // Start server
 app.listen(PORT, () => {

@@ -2,12 +2,32 @@
  * Tests for database functionality
  */
 import Database from 'better-sqlite3';
-import path from 'path';
-import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { createDatabaseConnection, closeDatabase } from '../../database/connection';
-import { createUser, createPoll, createAnswer, createVote } from '../../database/models';
 import { setupMigrations } from '../../database/migrations';
+
+// Define types for SQLite query results
+interface TableInfo {
+  name: string;
+}
+
+interface ColumnInfo {
+  name: string;
+  type: string;
+  notnull: number;
+  dflt_value: string | null;
+  pk: number;
+}
+
+interface CountResult {
+  count: number;
+}
+
+interface UserRecord {
+  id: string;
+  email: string;
+  name: string;
+}
 
 describe('Database Functionality', () => {
   let db: Database.Database;
@@ -39,7 +59,7 @@ describe('Database Functionality', () => {
       SELECT name FROM sqlite_master 
       WHERE type='table' 
       AND name IN ('Users', 'Polls', 'Answers', 'Votes', 'migrations')
-    `).all() as { name: string }[];
+    `).all() as TableInfo[];
     
     const tableNames = tables.map(t => t.name);
     
@@ -51,14 +71,14 @@ describe('Database Functionality', () => {
     expect(tableNames).toContain('migrations');
     
     // Check Users table structure
-    const usersInfo = db.prepare(`PRAGMA table_info(Users)`).all() as any[];
+    const usersInfo = db.prepare(`PRAGMA table_info(Users)`).all() as ColumnInfo[];
     const userColumns = usersInfo.map(col => col.name);
     expect(userColumns).toContain('id');
     expect(userColumns).toContain('email');
     expect(userColumns).toContain('name');
     
     // Check Polls table structure
-    const pollsInfo = db.prepare(`PRAGMA table_info(Polls)`).all() as any[];
+    const pollsInfo = db.prepare(`PRAGMA table_info(Polls)`).all() as ColumnInfo[];
     const pollColumns = pollsInfo.map(col => col.name);
     expect(pollColumns).toContain('id');
     expect(pollColumns).toContain('author_id');
@@ -66,14 +86,14 @@ describe('Database Functionality', () => {
     expect(pollColumns).toContain('question');
     
     // Check Answers table structure
-    const answersInfo = db.prepare(`PRAGMA table_info(Answers)`).all() as any[];
+    const answersInfo = db.prepare(`PRAGMA table_info(Answers)`).all() as ColumnInfo[];
     const answerColumns = answersInfo.map(col => col.name);
     expect(answerColumns).toContain('id');
     expect(answerColumns).toContain('poll_id');
     expect(answerColumns).toContain('text');
     
     // Check Votes table structure
-    const votesInfo = db.prepare(`PRAGMA table_info(Votes)`).all() as any[];
+    const votesInfo = db.prepare(`PRAGMA table_info(Votes)`).all() as ColumnInfo[];
     const voteColumns = votesInfo.map(col => col.name);
     expect(voteColumns).toContain('id');
     expect(voteColumns).toContain('poll_id');
@@ -96,7 +116,7 @@ describe('Database Functionality', () => {
       .run(userId, 'test@example.com', 'Test User');
     
     // Query user
-    const user = db.prepare('SELECT * FROM Users WHERE id = ?').get(userId) as any;
+    const user = db.prepare('SELECT * FROM Users WHERE id = ?').get(userId) as UserRecord;
     expect(user).toBeDefined();
     expect(user.id).toBe(userId);
     expect(user.email).toBe('test@example.com');
@@ -118,7 +138,7 @@ describe('Database Functionality', () => {
       .run(voteId, pollId, answerId, userId, new Date().toISOString());
     
     // Count the number of votes
-    const voteCount = db.prepare('SELECT COUNT(*) as count FROM Votes').get() as { count: number };
+    const voteCount = db.prepare('SELECT COUNT(*) as count FROM Votes').get() as CountResult;
     expect(voteCount.count).toBe(1);
     
     // Test foreign key constraint (should work since we enabled foreign keys)
@@ -145,7 +165,7 @@ describe('Database Functionality', () => {
     db.prepare('DELETE FROM Users WHERE id = ?').run(userId);
     
     // The poll should also be deleted
-    const pollCount = db.prepare('SELECT COUNT(*) as count FROM Polls WHERE id = ?').get(pollId) as { count: number };
+    const pollCount = db.prepare('SELECT COUNT(*) as count FROM Polls WHERE id = ?').get(pollId) as CountResult;
     expect(pollCount.count).toBe(0);
   });
 

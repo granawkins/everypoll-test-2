@@ -5,6 +5,7 @@ import { Umzug, SequelizeStorage } from 'umzug';
 import path from 'path';
 import fs from 'fs';
 import Database from 'better-sqlite3';
+import { fileURLToPath } from 'url';
 
 // Initialize migrations system
 export async function setupMigrations(db: Database.Database): Promise<void> {
@@ -18,9 +19,9 @@ export async function setupMigrations(db: Database.Database): Promise<void> {
   const umzug = new Umzug({
     migrations: {
       glob: ['migrations/*.ts', { cwd: __dirname }],
-      resolve: ({ name, path, context }) => {
-        // Load the migration module
-        const migration = require(path as string);
+      resolve: async ({ name, path, context }) => {
+        // Load the migration module using dynamic import (ES module style)
+        const migration = await import(fileURLToPath(new URL(path, import.meta.url)));
         
         return {
           name,
