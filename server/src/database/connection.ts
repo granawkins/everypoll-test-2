@@ -2,6 +2,7 @@
  * Database connection module
  */
 import Database from 'better-sqlite3';
+import type { Options } from 'better-sqlite3';
 import dbConfig from './config';
 import { setupMigrations } from './migrations';
 
@@ -9,9 +10,14 @@ import { setupMigrations } from './migrations';
 export function createDatabaseConnection(testMode = false) {
   const dbPath = testMode ? ':memory:' : dbConfig.path;
   
+  // Define options with correct type
+  const options: Options = {
+    verbose: console.log,
+  };
+  
   try {
     // Create database connection
-    const db = new Database(dbPath, dbConfig.options);
+    const db = new Database(dbPath, options);
     
     // Set pragmas (database settings)
     db.pragma('journal_mode = WAL'); // Write-Ahead Logging for better concurrency

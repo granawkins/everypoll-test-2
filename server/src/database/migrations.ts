@@ -1,11 +1,16 @@
 /**
  * Database migrations system
  */
-import { Umzug, SequelizeStorage } from 'umzug';
+import { Umzug } from 'umzug';
 import path from 'path';
 import fs from 'fs';
 import Database from 'better-sqlite3';
-import { fileURLToPath } from 'url';
+
+// Type for migration
+interface Migration {
+  up: (db: Database.Database) => void;
+  down: (db: Database.Database) => void;
+}
 
 // Initialize migrations system
 export async function setupMigrations(db: Database.Database): Promise<void> {
@@ -19,72 +24,58 @@ export async function setupMigrations(db: Database.Database): Promise<void> {
   const umzug = new Umzug({
     migrations: {
       glob: ['migrations/*.ts', { cwd: __dirname }],
-      resolve: async ({ name, path, context }) => {
-        // Load the migration module using dynamic import (ES module style)
-        const migration = await import(fileURLToPath(new URL(path, import.meta.url)));
+      resolve: ({ name, path }) => {
+        if (!path) {
+          throw new Error(`Cannot resolve path for migration ${name}`);
+        }
+        
+        // Load the migration module
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const migration = require(path) as Migration;
         
         return {
           name,
-          up: async () => migration.up(context.db),
-          down: async () => migration.down(context.db),
+          up: async (params) => migration.up(params.context.db),
+          down: async (params) => migration.down(params.context.db),
         };
       },
     },
     context: { db },
-    storage: new UmzugSQLiteStorage({ db }),
+    storage: {
+      logMigration: async ({ name }) => {
+        const stmt = db.prepare(`
+          INSERT INTO migrations (name, executed_at)
+          VALUES (?, ?)
+        `);
+        stmt.run(name, new Date().toISOString());
+      },
+      unlogMigration: async ({ name }) => {
+        const stmt = db.prepare(`
+          DELETE FROM migrations
+          WHERE name = ?
+        `);
+        stmt.run(name);
+      },
+      executed: async () => {
+        // Create migrations table if it doesn't exist
+        db.exec(`
+          CREATE TABLE IF NOT EXISTS migrations (
+            name TEXT PRIMARY KEY,
+            executed_at TEXT NOT NULL
+          )
+        `);
+        
+        const stmt = db.prepare(`
+          SELECT name FROM migrations
+          ORDER BY name
+        `);
+        const rows = stmt.all() as { name: string }[];
+        return rows.map(row => row.name);
+      },
+    },
     logger: console,
   });
 
   // Run pending migrations
   await umzug.up();
-}
-
-// SQLite storage adapter for Umzug
-class UmzugSQLiteStorage implements SequelizeStorage {
-  private db: Database.Database;
-  private tableName: string;
-
-  constructor({ db, tableName = 'migrations' }: { db: Database.Database; tableName?: string }) {
-    this.db = db;
-    this.tableName = tableName;
-    this.createTable();
-  }
-
-  // Create migrations table if it doesn't exist
-  private createTable(): void {
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS ${this.tableName} (
-        name TEXT PRIMARY KEY,
-        executed_at TEXT NOT NULL
-      )
-    `);
-  }
-
-  // Log executed migration
-  async logMigration({ name }: { name: string }): Promise<void> {
-    const stmt = this.db.prepare(`
-      INSERT INTO ${this.tableName} (name, executed_at)
-      VALUES (?, ?)
-    `);
-    stmt.run(name, new Date().toISOString());
-  }
-
-  // Remove migration log
-  async unlogMigration({ name }: { name: string }): Promise<void> {
-    const stmt = this.db.prepare(`
-      DELETE FROM ${this.tableName}
-      WHERE name = ?
-    `);
-    stmt.run(name);
-  }
-
-  // Get executed migrations
-  async executed(): Promise<string[]> {
-    const stmt = this.db.prepare(`
-      SELECT name FROM ${this.tableName}
-      ORDER BY name
-    `);
-    const rows = stmt.all() as { name: string }[];
-    return rows.map(row => row.name);
-  }
 }
