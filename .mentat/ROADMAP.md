@@ -60,11 +60,49 @@ Tests should verify:
 
 Implement Google OAuth authentication with endpoints for /api/auth/login, /api/auth/google-callback, and /api/auth/logout. Add functionality to link anonymous accounts with Google logins.
 
+### Implementation Details
+
+1. **Type Definitions**:
+   - Create a TypeScript declaration file to extend express-session with userId property
+   - Ensure proper type integration between session and authentication systems
+   - Define clear interfaces for Google user data and authentication responses
+
+2. **Google OAuth Configuration**:
+   - Install the google-auth-library package
+   - Create a configuration module with environment variable support
+   - Implement utility functions for generating OAuth URLs and verifying tokens
+   - Keep OAuth logic separate from route handlers
+
+3. **Authentication Routes**:
+   - Implement `/api/auth/login` to generate and return Google OAuth URLs
+   - Create `/api/auth/google-callback` endpoint to process authorization codes
+   - Ensure the logout endpoint properly clears sessions
+   - Use a consistent pattern for route handlers (all synchronous or all async)
+
+4. **User Account Linking**:
+   - Enhance the `linkUserToGoogle` function to associate anonymous accounts with Google user data
+   - Handle the case of existing Google accounts properly
+   - Update session with new user information after successful linking
+
+### Testing Strategy
+
 Tests should verify:
 - Google authentication flow redirects and processes returns correctly
 - User information is updated after successful Google login
 - Sessions are maintained properly across requests
 - Logout functionality properly clears session data
+
+**Testing Tips**:
+- Create a consistent session mocking approach with proper session method return values
+- Use proper cookie object structures in session mocks
+- Mock Google OAuth interactions without making real API calls
+- Test both successful authentication flows and error scenarios
+
+### Potential Challenges
+- TypeScript typing with Google API responses and session extensions
+- Session handling with async route handlers requires careful design
+- CSRF protection in the OAuth flow needs proper implementation
+- Environment variables must be handled properly for production vs development
 
 ## Step 4: Create poll management API endpoints
 
