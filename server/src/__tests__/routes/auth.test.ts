@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createAnonymousUser, getUserById } from '../../services/userService';
+import { createAnonymousUser } from '../../services/userService';
 import { SESSION_USER_KEY } from '../../config/session';
 
 // Mock the user service
@@ -10,11 +10,17 @@ jest.mock('../../services/userService', () => ({
 
 // Import the route handler functions directly
 // We need to get the actual handler functions from the routes
+// Define types for testing
+type MockSession = {
+  [SESSION_USER_KEY]?: string;
+  destroy: (callback: (err: Error | null) => void) => void;
+};
+
 // Here we'll test them directly without HTTP
 describe('Auth Routes', () => {
   let mockRequest: Partial<Request>;
   let mockResponse: Partial<Response>;
-  let handlers: { [key: string]: (req: Request, res: Response) => Promise<any> };
+  let handlers: { [key: string]: (req: Request, res: Response) => Promise<unknown> };
 
   // Extract route handlers from the auth router
   beforeAll(() => {
@@ -58,7 +64,7 @@ describe('Auth Routes', () => {
       session: {
         destroy: jest.fn((callback) => callback(null)),
         [SESSION_USER_KEY]: undefined,
-      } as any,
+      } as MockSession,
       isAuthenticated: false,
       user: undefined,
     };
@@ -125,7 +131,7 @@ describe('Auth Routes', () => {
       // Mock session destroy to fail
       mockRequest.session = {
         destroy: jest.fn((callback) => callback(new Error('Session destroy error'))),
-      } as any;
+      } as MockSession;
 
       // Call the handler directly
       await handlers.logoutHandler(mockRequest as Request, mockResponse as Response);

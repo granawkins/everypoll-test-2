@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { createAnonymousUser, getUserById } from '../services/userService';
+import { createAnonymousUser } from '../services/userService';
 import { SESSION_USER_KEY } from '../config/session';
 
 const router = Router();

@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import { attachUser, requireAuth } from '../../middleware/auth';
 import { getUserById } from '../../services/userService';
 import { SESSION_USER_KEY } from '../../config/session';
@@ -7,6 +7,12 @@ import { SESSION_USER_KEY } from '../../config/session';
 jest.mock('../../services/userService', () => ({
   getUserById: jest.fn(),
 }));
+
+// Type for Express session
+type MockSession = {
+  [SESSION_USER_KEY]?: string;
+  destroy: (callback: (err: Error | null) => void) => void;
+};
 
 describe('Auth Middleware', () => {
   let mockRequest: Partial<Request>;
@@ -19,7 +25,7 @@ describe('Auth Middleware', () => {
 
     // Setup mock request, response, and next function
     mockRequest = {
-      session: {} as any,
+      session: {} as MockSession,
       isAuthenticated: false,
     };
     mockResponse = {
@@ -45,7 +51,7 @@ describe('Auth Middleware', () => {
 
     it('should attach user if valid user ID in session', async () => {
       const testUser = { id: 'test-user-id', email: null, name: null };
-      mockRequest.session = { [SESSION_USER_KEY]: testUser.id } as any;
+      mockRequest.session = { [SESSION_USER_KEY]: testUser.id } as MockSession;
       (getUserById as jest.Mock).mockResolvedValue(testUser);
 
       await attachUser(
@@ -61,7 +67,7 @@ describe('Auth Middleware', () => {
     });
 
     it('should handle case where user not found in database', async () => {
-      mockRequest.session = { [SESSION_USER_KEY]: 'non-existent-id' } as any;
+      mockRequest.session = { [SESSION_USER_KEY]: 'non-existent-id' } as MockSession;
       (getUserById as jest.Mock).mockResolvedValue(undefined);
 
       await attachUser(
@@ -77,7 +83,7 @@ describe('Auth Middleware', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      mockRequest.session = { [SESSION_USER_KEY]: 'error-id' } as any;
+      mockRequest.session = { [SESSION_USER_KEY]: 'error-id' } as MockSession;
       (getUserById as jest.Mock).mockRejectedValue(new Error('Database error'));
 
       await attachUser(

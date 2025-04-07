@@ -22,7 +22,8 @@ jest.mock('../middleware/auth', () => ({
 
 // Mock auth routes
 jest.mock('../routes/auth', () => {
-  const express = require('express');
+  // Import express properly
+  const express = jest.requireActual('express');
   const router = express.Router();
   router.get('/me', (req, res) => res.json({ message: 'Auth route mocked' }));
   return router;

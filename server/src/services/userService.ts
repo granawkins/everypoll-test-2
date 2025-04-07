@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { executeQuery, getRow, transaction } from '../db';
+import { executeQuery, getRow } from '../db';
 
 /**
  * Represents a user in the system
