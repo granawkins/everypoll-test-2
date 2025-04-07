@@ -56,10 +56,10 @@ describe('Migrations System', () => {
     // Check if migrations table exists
     const tableExists = db.prepare(
       "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
-    ).get('migrations');
+    ).get('migrations') as { name: string } | undefined;
     
     expect(tableExists).toBeDefined();
-    expect(tableExists.name).toBe('migrations');
+    expect(tableExists?.name).toBe('migrations');
   });
 
   // Skip the tests that rely on the full implementation since we're testing in isolation

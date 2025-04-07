@@ -3,8 +3,9 @@ import { executeQuery, getRow } from '../db';
 
 /**
  * Represents a user in the system
+ * Extends Record<string, SQLiteValue> to be compatible with database operations
  */
-export interface User {
+export interface User extends Record<string, string | null> {
   id: string;
   email: string | null;
   name: string | null;

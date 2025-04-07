@@ -1,4 +1,4 @@
-import { Umzug } from 'umzug';
+import { Umzug, MigrationParams } from 'umzug';
 import Database from 'better-sqlite3';
 import { DB_CONFIG } from '../config';
 
@@ -16,6 +16,12 @@ interface Migration {
 interface MigrationRow {
   name: string;
 }
+
+// Use a more explicit type for the migrator
+type MigrationContext = {
+  name: string;
+  path: string;
+};
 
 /**
  * Custom storage implementation for SQLite
@@ -46,10 +52,12 @@ const createSqliteStorage = (db: Database.Database) => {
     },
     executed: async () => {
       // Return the list of executed migrations
-      return db.prepare(`
+      const rows = db.prepare(`
         SELECT name FROM ${DB_CONFIG.migrationTableName} 
         ORDER BY executed_at
-      `).all().map((row: MigrationRow) => row.name);
+      `).all() as MigrationRow[];
+      
+      return rows.map(row => row.name);
     }
   };
 };
@@ -57,10 +65,7 @@ const createSqliteStorage = (db: Database.Database) => {
 /**
  * Type for the migrator instance
  */
-type DatabaseMigrator = Umzug<{
-  name: string;
-  path: string;
-}>;
+type DatabaseMigrator = Umzug<MigrationContext>;
 
 /**
  * Dynamically import a migration file
@@ -76,10 +81,10 @@ const importMigration = async (path: string): Promise<Migration> => {
  */
 export const setupMigrations = (db: Database.Database): DatabaseMigrator => {
   // Setup umzug migrator
-  const migrator = new Umzug({
+  const migrator = new Umzug<MigrationContext>({
     migrations: {
       glob: ['*.ts', { cwd: DB_CONFIG.migrationPath }],
-      resolve: async ({ name, path }) => {
+      resolve: async ({ name, path }: MigrationParams<MigrationContext>) => {
         if (!path) {
           throw new Error(`Could not resolve migration path for ${name}`);
         }
@@ -87,10 +92,17 @@ export const setupMigrations = (db: Database.Database): DatabaseMigrator => {
         try {
           // Import migration file using dynamic import
           const migration = await importMigration(path);
+          
           return {
             name,
-            up: async () => migration.up(db),
-            down: async () => migration.down(db),
+            up: async () => {
+              migration.up(db);
+              return Promise.resolve();
+            },
+            down: async () => {
+              migration.down(db);
+              return Promise.resolve();
+            },
           };
         } catch (error) {
           console.error(`Failed to import migration ${name}:`, error);

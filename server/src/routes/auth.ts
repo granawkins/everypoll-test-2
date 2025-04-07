@@ -1,7 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { createAnonymousUser, getUserById, linkUserToGoogle } from '../services/userService';
-import { SESSION_USER_KEY } from '../config/session';
 import { getGoogleAuthUrl, getGoogleUserInfo } from '../config/oauth/google';
 
 const router = Router();
@@ -11,7 +10,7 @@ const router = Router();
  * Returns the current user's information
  * Creates a new anonymous user if no user is authenticated
  */
-router.get('/me', async (req: Request, res: Response) => {
+router.get('/me', async (req: Request, res: Response): Promise<Response> => {
   try {
     // If user is already authenticated, return user data
     if (req.isAuthenticated && req.user) {
@@ -22,7 +21,7 @@ router.get('/me', async (req: Request, res: Response) => {
     const newUser = await createAnonymousUser();
     
     // Store user ID in session
-    req.session[SESSION_USER_KEY] = newUser.id;
+    req.session.userId = newUser.id;
     
     // Return the new user
     return res.status(201).json({ user: newUser });
@@ -37,7 +36,7 @@ router.get('/me', async (req: Request, res: Response) => {
  * Generates a Google authentication URL and returns it
  * The frontend will redirect the user to this URL
  */
-router.post('/login', (req: Request, res: Response) => {
+router.post('/login', (req: Request, res: Response): Response => {
   try {
     // Generate a state parameter for CSRF protection
     const state = uuidv4();
@@ -61,7 +60,7 @@ router.post('/login', (req: Request, res: Response) => {
  * Handles the callback from Google after user authentication
  * Verifies the authorization code and updates the user's information
  */
-router.get('/google-callback', async (req: Request, res: Response) => {
+router.get('/google-callback', async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const { code, state: encodedState, error } = req.query;
     
@@ -97,7 +96,7 @@ router.get('/google-callback', async (req: Request, res: Response) => {
     }
     
     // Get user ID from session
-    const userId = req.session[SESSION_USER_KEY];
+    const userId = req.session.userId;
     if (!userId) {
       return res.redirect('/?error=no_session');
     }
@@ -130,15 +129,16 @@ router.get('/google-callback', async (req: Request, res: Response) => {
  * POST /api/auth/logout
  * Logs out the current user by destroying the session
  */
-router.post('/logout', (req: Request, res: Response) => {
+router.post('/logout', (req: Request, res: Response): void => {
   req.session.destroy((err) => {
     if (err) {
       console.error('Error destroying session:', err);
-      return res.status(500).json({ error: 'Failed to logout' });
+      res.status(500).json({ error: 'Failed to logout' });
+      return;
     }
     
     res.clearCookie('everypoll.sid');
-    return res.json({ message: 'Logged out successfully' });
+    res.json({ message: 'Logged out successfully' });
   });
 });
 

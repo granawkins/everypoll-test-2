@@ -1,7 +1,7 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
+import { Session } from 'express-session';
 import { v4 as uuidv4 } from 'uuid';
 import { createAnonymousUser, getUserById, linkUserToGoogle } from '../../services/userService';
-import { SESSION_USER_KEY } from '../../config/session';
 import { getGoogleAuthUrl, getGoogleUserInfo } from '../../config/oauth/google';
 
 // Mock the uuid generation
@@ -22,17 +22,20 @@ jest.mock('../../config/oauth/google', () => ({
   getGoogleUserInfo: jest.fn(),
 }));
 
-// Define types for testing
-type MockSession = {
-  [SESSION_USER_KEY]?: string;
-  destroy: (callback: (err: Error | null) => void) => void;
-};
+// Create a more complete mock session
+interface MockRequest extends Partial<Request> {
+  session: Session & { userId?: string };
+  isAuthenticated?: boolean;
+  user?: any;
+  body?: any;
+  query?: any;
+}
 
 // Here we'll test them directly without HTTP
 describe('Auth Routes', () => {
-  let mockRequest: Partial<Request>;
+  let mockRequest: MockRequest;
   let mockResponse: Partial<Response>;
-  let handlers: { [key: string]: (req: Request, res: Response) => Promise<unknown> };
+  let handlers: { [key: string]: (req: Request, res: Response) => Promise<any> };
 
   // Extract route handlers from the auth router
   beforeAll(() => {
@@ -42,21 +45,21 @@ describe('Auth Routes', () => {
     // We can't easily extract handlers from Express Router
     // So we'll define them here to match the implementation
     handlers = {
-      getMeHandler: async (req: Request, res: Response) => {
+      getMeHandler: async (req: Request, res: Response): Promise<any> => {
         try {
           if (req.isAuthenticated && req.user) {
             return res.json({ user: req.user });
           }
           
           const newUser = await createAnonymousUser();
-          req.session[SESSION_USER_KEY] = newUser.id;
+          req.session.userId = newUser.id;
           return res.status(201).json({ user: newUser });
         } catch (error) {
           console.error('Error in /api/auth/me:', error);
           return res.status(500).json({ error: 'Internal server error' });
         }
       },
-      loginHandler: (req: Request, res: Response) => {
+      loginHandler: async (req: Request, res: Response): Promise<any> => {
         try {
           // Generate a state parameter for CSRF protection
           const state = uuidv4();
@@ -74,7 +77,7 @@ describe('Auth Routes', () => {
           return res.status(500).json({ error: 'Failed to generate Google auth URL' });
         }
       },
-      googleCallbackHandler: async (req: Request, res: Response) => {
+      googleCallbackHandler: async (req: Request, res: Response): Promise<any> => {
         try {
           const { code, state: encodedState, error } = req.query;
           
@@ -110,7 +113,7 @@ describe('Auth Routes', () => {
           }
           
           // Get user ID from session
-          const userId = req.session[SESSION_USER_KEY];
+          const userId = req.session.userId;
           if (!userId) {
             return res.redirect('/?error=no_session');
           }
@@ -138,15 +141,17 @@ describe('Auth Routes', () => {
           return res.redirect('/?error=google_callback_failed');
         }
       },
-      logoutHandler: (req: Request, res: Response) => {
-        req.session.destroy((err) => {
-          if (err) {
-            console.error('Error destroying session:', err);
-            return res.status(500).json({ error: 'Failed to logout' });
-          }
-          
-          res.clearCookie('everypoll.sid');
-          return res.json({ message: 'Logged out successfully' });
+      logoutHandler: async (req: Request, res: Response): Promise<any> => {
+        return new Promise<any>((resolve) => {
+          req.session.destroy((err) => {
+            if (err) {
+              console.error('Error destroying session:', err);
+              resolve(res.status(500).json({ error: 'Failed to logout' }));
+            } else {
+              res.clearCookie('everypoll.sid');
+              resolve(res.json({ message: 'Logged out successfully' }));
+            }
+          });
         });
       }
     };
@@ -156,9 +161,15 @@ describe('Auth Routes', () => {
     jest.clearAllMocks();
     mockRequest = {
       session: {
-        destroy: jest.fn((callback) => callback(null)),
-        [SESSION_USER_KEY]: undefined,
-      } as MockSession,
+        id: 'test-session-id',
+        cookie: {},
+        regenerate: jest.fn((cb) => cb(null)),
+        destroy: jest.fn((cb) => cb(null)),
+        reload: jest.fn((cb) => cb(null)),
+        save: jest.fn((cb) => cb(null)),
+        touch: jest.fn((cb) => cb(null)),
+        userId: undefined
+      } as Session & { userId?: string },
       isAuthenticated: false,
       user: undefined,
       body: {},
@@ -189,7 +200,7 @@ describe('Auth Routes', () => {
       expect(mockResponse.json).toHaveBeenCalledWith({ user: mockUser });
 
       // Check session was updated with user ID
-      expect(mockRequest.session[SESSION_USER_KEY]).toBe(mockUser.id);
+      expect(mockRequest.session.userId).toBe(mockUser.id);
     });
 
     it('should return existing user when already authenticated', async () => {
@@ -266,7 +277,7 @@ describe('Auth Routes', () => {
         code: 'test-auth-code',
         state: Buffer.from(JSON.stringify({ state: 'test-state', redirectUrl: '/profile' })).toString('base64'),
       };
-      mockRequest.session[SESSION_USER_KEY] = 'test-user-id';
+      mockRequest.session.userId = 'test-user-id';
       
       // Mock Google user info response
       (getGoogleUserInfo as jest.Mock).mockResolvedValue({
@@ -370,7 +381,7 @@ describe('Auth Routes', () => {
     
     it('should handle missing session', async () => {
       // Remove user ID from session
-      mockRequest.session[SESSION_USER_KEY] = undefined;
+      mockRequest.session.userId = undefined;
       
       // Call the handler
       await handlers.googleCallbackHandler(mockRequest as Request, mockResponse as Response);
@@ -408,9 +419,11 @@ describe('Auth Routes', () => {
 
     it('should handle session destroy errors', async () => {
       // Mock session destroy to fail
+      const mockDestroy = jest.fn((cb) => cb(new Error('Session destroy error')));
       mockRequest.session = {
-        destroy: jest.fn((callback) => callback(new Error('Session destroy error'))),
-      } as MockSession;
+        ...mockRequest.session,
+        destroy: mockDestroy
+      };
 
       // Call the handler directly
       await handlers.logoutHandler(mockRequest as Request, mockResponse as Response);

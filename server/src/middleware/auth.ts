@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { SESSION_USER_KEY } from '../config/session';
 import { getUserById, User } from '../services/userService';
 
 /**
@@ -24,7 +23,7 @@ export const attachUser = async (
   req.isAuthenticated = false;
 
   // Check if there's a user ID in the session
-  const userId = req.session[SESSION_USER_KEY];
+  const userId = req.session.userId;
   if (userId) {
     try {
       // Get user from database
@@ -52,7 +51,8 @@ export const requireAuth = (
   next: NextFunction
 ): void => {
   if (!req.isAuthenticated || !req.user) {
-    return res.status(401).json({ error: 'Authentication required' });
+    res.status(401).json({ error: 'Authentication required' });
+    return;
   }
   next();
 };

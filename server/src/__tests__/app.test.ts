@@ -1,4 +1,5 @@
 import request from 'supertest';
+import { Request, Response, NextFunction } from 'express';
 import { app } from '../app';
 
 // Mock dependencies
@@ -9,15 +10,23 @@ jest.mock('../db', () => ({
 
 // Mock express-session
 jest.mock('express-session', () => {
-  return jest.fn(() => (req, res, next) => {
-    req.session = {};
+  return jest.fn(() => (req: Request, res: Response, next: NextFunction) => {
+    req.session = {
+      id: 'test-session-id',
+      cookie: {},
+      regenerate: (cb: (err: any) => void) => cb(null),
+      destroy: (cb: (err: any) => void) => cb(null),
+      reload: (cb: (err: any) => void) => cb(null),
+      save: (cb: (err: any) => void) => cb(null),
+      touch: (cb: (err: any) => void) => cb(null),
+    };
     next();
   });
 });
 
 // Mock auth middleware
 jest.mock('../middleware/auth', () => ({
-  attachUser: jest.fn((req, res, next) => next()),
+  attachUser: jest.fn((req: Request, res: Response, next: NextFunction) => next()),
 }));
 
 // Mock auth routes
@@ -25,7 +34,7 @@ jest.mock('../routes/auth', () => {
   // Import express properly
   const express = jest.requireActual('express');
   const router = express.Router();
-  router.get('/me', (req, res) => res.json({ message: 'Auth route mocked' }));
+  router.get('/me', (req: Request, res: Response) => res.json({ message: 'Auth route mocked' }));
   return router;
 });
 

@@ -89,7 +89,8 @@ export const getAllRows = async <T extends Record<string, SQLiteValue>>(
   params: SQLiteParams = {}
 ): Promise<T[]> => {
   const database = await getDatabase();
-  return database.prepare(sql).all(params);
+  const result = database.prepare(sql).all(params);
+  return result as T[];
 };
 
 /**
@@ -100,7 +101,8 @@ export const getRow = async <T extends Record<string, SQLiteValue>>(
   params: SQLiteParams = {}
 ): Promise<T | undefined> => {
   const database = await getDatabase();
-  return database.prepare(sql).get(params);
+  const result = database.prepare(sql).get(params);
+  return result as T | undefined;
 };
 
 /**
