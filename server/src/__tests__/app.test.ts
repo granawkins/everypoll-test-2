@@ -8,17 +8,20 @@ jest.mock('../db', () => ({
   closeDatabase: jest.fn().mockResolvedValue({}),
 }));
 
+// Type for session callback error
+type SessionCallback = (err: Error | null) => void;
+
 // Mock express-session
 jest.mock('express-session', () => {
   return jest.fn(() => (req: Request, res: Response, next: NextFunction) => {
     req.session = {
       id: 'test-session-id',
       cookie: {},
-      regenerate: (cb: (err: any) => void) => cb(null),
-      destroy: (cb: (err: any) => void) => cb(null),
-      reload: (cb: (err: any) => void) => cb(null),
-      save: (cb: (err: any) => void) => cb(null),
-      touch: (cb: (err: any) => void) => cb(null),
+      regenerate: (cb: SessionCallback) => cb(null),
+      destroy: (cb: SessionCallback) => cb(null),
+      reload: (cb: SessionCallback) => cb(null),
+      save: (cb: SessionCallback) => cb(null),
+      touch: (cb: SessionCallback) => cb(null),
     };
     next();
   });

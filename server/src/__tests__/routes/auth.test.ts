@@ -1,7 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import { Session } from 'express-session';
 import { v4 as uuidv4 } from 'uuid';
-import { createAnonymousUser, getUserById, linkUserToGoogle } from '../../services/userService';
+import { createAnonymousUser, getUserById, linkUserToGoogle, User } from '../../services/userService';
 import { getGoogleAuthUrl, getGoogleUserInfo } from '../../config/oauth/google';
 
 // Mock the uuid generation
@@ -22,20 +22,27 @@ jest.mock('../../config/oauth/google', () => ({
   getGoogleUserInfo: jest.fn(),
 }));
 
+// Define types for the request properties
+type RequestQuery = Record<string, string | undefined>;
+type RequestBody = Record<string, unknown>;
+
 // Create a more complete mock session
 interface MockRequest extends Partial<Request> {
   session: Session & { userId?: string };
   isAuthenticated?: boolean;
-  user?: any;
-  body?: any;
-  query?: any;
+  user?: User;
+  body?: RequestBody;
+  query?: RequestQuery;
 }
+
+// Type for API response
+type ApiResponse = Response<unknown>;
 
 // Here we'll test them directly without HTTP
 describe('Auth Routes', () => {
   let mockRequest: MockRequest;
   let mockResponse: Partial<Response>;
-  let handlers: { [key: string]: (req: Request, res: Response) => Promise<any> };
+  let handlers: { [key: string]: (req: Request, res: Response) => Promise<ApiResponse | void> };
 
   // Extract route handlers from the auth router
   beforeAll(() => {
@@ -45,7 +52,7 @@ describe('Auth Routes', () => {
     // We can't easily extract handlers from Express Router
     // So we'll define them here to match the implementation
     handlers = {
-      getMeHandler: async (req: Request, res: Response): Promise<any> => {
+      getMeHandler: async (req: Request, res: Response): Promise<ApiResponse> => {
         try {
           if (req.isAuthenticated && req.user) {
             return res.json({ user: req.user });
@@ -59,7 +66,7 @@ describe('Auth Routes', () => {
           return res.status(500).json({ error: 'Internal server error' });
         }
       },
-      loginHandler: async (req: Request, res: Response): Promise<any> => {
+      loginHandler: async (req: Request, res: Response): Promise<ApiResponse> => {
         try {
           // Generate a state parameter for CSRF protection
           const state = uuidv4();
@@ -77,7 +84,7 @@ describe('Auth Routes', () => {
           return res.status(500).json({ error: 'Failed to generate Google auth URL' });
         }
       },
-      googleCallbackHandler: async (req: Request, res: Response): Promise<any> => {
+      googleCallbackHandler: async (req: Request, res: Response): Promise<ApiResponse | void> => {
         try {
           const { code, state: encodedState, error } = req.query;
           
@@ -141,8 +148,8 @@ describe('Auth Routes', () => {
           return res.redirect('/?error=google_callback_failed');
         }
       },
-      logoutHandler: async (req: Request, res: Response): Promise<any> => {
-        return new Promise<any>((resolve) => {
+      logoutHandler: async (req: Request, res: Response): Promise<ApiResponse> => {
+        return new Promise<ApiResponse>((resolve) => {
           req.session.destroy((err) => {
             if (err) {
               console.error('Error destroying session:', err);
@@ -163,11 +170,11 @@ describe('Auth Routes', () => {
       session: {
         id: 'test-session-id',
         cookie: {},
-        regenerate: jest.fn((cb) => cb(null)),
-        destroy: jest.fn((cb) => cb(null)),
-        reload: jest.fn((cb) => cb(null)),
-        save: jest.fn((cb) => cb(null)),
-        touch: jest.fn((cb) => cb(null)),
+        regenerate: jest.fn((cb: (err: Error | null) => void) => cb(null)),
+        destroy: jest.fn((cb: (err: Error | null) => void) => cb(null)),
+        reload: jest.fn((cb: (err: Error | null) => void) => cb(null)),
+        save: jest.fn((cb: (err: Error | null) => void) => cb(null)),
+        touch: jest.fn((cb: (err: Error | null) => void) => cb(null)),
         userId: undefined
       } as Session & { userId?: string },
       isAuthenticated: false,
@@ -419,7 +426,7 @@ describe('Auth Routes', () => {
 
     it('should handle session destroy errors', async () => {
       // Mock session destroy to fail
-      const mockDestroy = jest.fn((cb) => cb(new Error('Session destroy error')));
+      const mockDestroy = jest.fn((cb: (err: Error | null) => void) => cb(new Error('Session destroy error')));
       mockRequest.session = {
         ...mockRequest.session,
         destroy: mockDestroy

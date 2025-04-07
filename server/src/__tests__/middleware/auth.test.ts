@@ -1,19 +1,12 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import { Session } from 'express-session';
 import { attachUser, requireAuth } from '../../middleware/auth';
 import { getUserById } from '../../services/userService';
-import { SESSION_USER_KEY } from '../../config/session';
 
 // Mock the user service
 jest.mock('../../services/userService', () => ({
   getUserById: jest.fn(),
 }));
-
-// Create a more complete mock Session type
-interface MockSession extends Partial<Session> {
-  userId?: string;
-  destroy: (callback: (err: Error | null) => void) => void;
-}
 
 describe('Auth Middleware', () => {
   let mockRequest: Partial<Request>;
